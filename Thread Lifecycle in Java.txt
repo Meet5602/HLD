@@ -1,0 +1,1667 @@
+Thread Lifecycle in Java
+
+A thread goes through the following states during its execution:
+
+1. NEW
+Thread object is created but start() is not called.
+Example:
+Thread t = new Thread();
+2. RUNNABLE
+Thread enters this state after calling start().
+It is ready to run and waiting for the CPU scheduler.
+Note: Java combines Ready and Running into the RUNNABLE state.
+t.start();
+3. BLOCKED
+Thread is waiting to acquire a monitor lock (synchronized).
+synchronized(lock) {
+    // waiting if another thread owns the lock
+}
+4. WAITING
+Thread waits indefinitely until another thread wakes it up.
+Methods:
+wait()
+join()
+thread.join();
+5. TIMED_WAITING
+Thread waits for a specified amount of time.
+Methods:
+sleep()
+wait(timeout)
+join(timeout)
+Thread.sleep(2000);
+6. TERMINATED
+Thread finishes execution or exits due to an uncaught exception.
+Thread Lifecycle Diagram
+NEW
+ |
+ | start()
+ v
+RUNNABLE
+ |
+ | (CPU Scheduler)
+ v
+Running
+ |
+ |-----------------------------
+ |        |          |
+sleep()  wait()   waiting for lock
+ |        |          |
+ v        v          v
+TIMED   WAITING   BLOCKED
+WAITING
+ |
+ | timeout/notify()/lock acquired
+ v
+RUNNABLE
+ |
+ | run() completes
+ v
+TERMINATED
+
+Interview Note: Java officially has 6 states (NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING, TERMINATED). Running is not an official state; it is considered part of RUNNABLE.
+
+Creating Threads in Java
+Method 1: Extending Thread
+class MyThread extends Thread {
+    @Override
+    public void run() {
+        System.out.println("Thread is running");
+    }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        MyThread t = new MyThread();
+        t.start();
+    }
+}
+Method 2: Implementing Runnable (Recommended)
+class MyTask implements Runnable {
+    @Override
+    public void run() {
+        System.out.println("Task is running");
+    }
+}
+
+public class Main {
+    public static void main(String[] args) {
+        Thread t = new Thread(new MyTask());
+        t.start();
+    }
+}
+Method 3: Lambda Expression (Java 8+)
+public class Main {
+    public static void main(String[] args) {
+        Thread t = new Thread(() -> {
+            System.out.println("Running...");
+        });
+
+        t.start();
+    }
+}
+start() vs run()
+start()	run()
+Creates a new thread	Normal method call
+Executes concurrently	Executes on the current thread
+Calls run() internally	Does not create a new thread
+
+Example:
+
+Thread t = new Thread(() -> {
+    System.out.println(Thread.currentThread().getName());
+});
+
+t.run();    // main
+t.start();  // Thread-0
+Why Runnable is Preferred?
+Supports multiple inheritance (can extend another class).
+Separates task from thread.
+More reusable and flexible.
+Commonly used with ExecutorService and thread pools.
+Interview Points
+Always call start(), not run().
+A thread cannot be started twice (IllegalThreadStateException).
+RUNNABLE includes both ready and running threads.
+Prefer Runnable over extending Thread.
+
+
+Commonly Used Thread Methods
+Method	Purpose
+start()	Starts a new thread
+run()	Defines the task to execute
+sleep()	Pauses the current thread
+join()	Waits for another thread to finish
+yield()	Hints the scheduler to switch threads
+interrupt()	Interrupts a thread
+isAlive()	Checks if the thread is still running
+currentThread()	Returns the currently executing thread
+getName()/setName()	Gets or sets the thread name
+getPriority()/setPriority()	Gets or sets thread priority
+isInterrupted()	Checks interrupt status
+
+
+
+synchronized Keyword in Java
+What is synchronized?
+synchronized is used to prevent multiple threads from accessing a critical section simultaneously.
+It ensures that only one thread can execute the synchronized code at a time, preventing race conditions and maintaining thread safety.
+Why do we need synchronized?
+
+Without synchronization, multiple threads can modify shared data simultaneously, leading to inconsistent results.
+
+Without synchronized
+class Counter {
+    int count = 0;
+
+    public void increment() {
+        count++;
+    }
+}
+
+If two threads execute increment() at the same time, the final value of count may be incorrect.
+
+With synchronized
+class Counter {
+    int count = 0;
+
+    public synchronized void increment() {
+        count++;
+    }
+}
+
+Now only one thread can execute increment() at a time.
+
+How does synchronized work?
+
+Every Java object has an intrinsic lock (monitor).
+
+When a thread enters a synchronized method/block:
+
+It acquires the object's lock.
+Other threads trying to access the same synchronized code must wait.
+When the thread exits, it releases the lock.
+Thread-1 ----> Acquires Lock ----> Executes ----> Releases Lock
+
+Thread-2 ----> Waits ------------> Acquires Lock ----> Executes
+Types of Synchronization
+1. Synchronized Method
+
+Locks the entire object (this).
+
+class Counter {
+    int count = 0;
+
+    public synchronized void increment() {
+        count++;
+    }
+}
+2. Synchronized Block
+
+Locks only a specific block of code.
+
+class Counter {
+    int count = 0;
+
+    public void increment() {
+        synchronized (this) {
+            count++;
+        }
+    }
+}
+
+Advantage: Better performance because only the critical section is locked.
+
+3. Static Synchronized Method
+
+Locks the Class object, not an instance.
+
+class Counter {
+
+    public static synchronized void print() {
+        System.out.println("Hello");
+    }
+}
+
+Lock acquired: Counter.class
+
+Example
+class Counter {
+    int count = 0;
+
+    public synchronized void increment() {
+        count++;
+    }
+}
+
+public class Main {
+    public static void main(String[] args) throws InterruptedException {
+
+        Counter counter = new Counter();
+
+        Thread t1 = new Thread(() -> {
+            for (int i = 0; i < 1000; i++)
+                counter.increment();
+        });
+
+        Thread t2 = new Thread(() -> {
+            for (int i = 0; i < 1000; i++)
+                counter.increment();
+        });
+
+        t1.start();
+        t2.start();
+
+        t1.join();
+        t2.join();
+
+        System.out.println(counter.count);
+    }
+}
+
+Output
+
+2000
+
+Without synchronized, the output could be less than 2000.
+
+Object Lock vs Class Lock
+Object Lock	Class Lock
+Used by instance synchronized methods/blocks	Used by static synchronized methods
+Each object has its own lock	One lock per class
+Different objects can execute simultaneously	Only one static synchronized method executes across all objects
+Advantages
+Prevents race conditions.
+Ensures thread safety.
+Easy to use.
+Automatically acquires and releases locks.
+Disadvantages
+Reduces concurrency.
+Threads may spend time waiting for the lock.
+Can lead to deadlocks if locks are acquired in the wrong order.
+Interview Points
+Every Java object has an intrinsic lock (monitor).
+synchronized provides mutual exclusion—only one thread can execute the protected code at a time.
+Prefer synchronized blocks over synchronized methods when only part of the code needs protection.
+synchronized does not prevent deadlocks; incorrect lock ordering can still cause them.
+sleep() does not release a synchronized lock, but wait() does release the lock.
+
+
+Lock Fairness
+What is Lock Fairness?
+
+Lock fairness determines which thread gets the lock next when multiple threads are waiting.
+
+There are two types:
+
+Fair Lock
+Non-Fair Lock (Default)
+1. Non-Fair Lock (Default)
+A thread can acquire the lock immediately, even if other threads have been waiting.
+Provides better performance because it reduces context switching.
+May cause thread starvation.
+Lock lock = new ReentrantLock();   // Non-fair lock
+
+Example
+
+Waiting Queue:
+T1 → T2 → T3
+
+New Thread T4 arrives
+
+Possible Execution:
+T4 gets the lock first ❌
+2. Fair Lock
+Threads acquire the lock in FIFO (First-In, First-Out) order.
+The thread waiting the longest gets the lock first.
+Prevents starvation.
+Slightly slower due to queue management.
+Lock lock = new ReentrantLock(true);   // Fair lock
+
+Example
+
+Waiting Queue:
+T1 → T2 → T3
+
+Execution:
+T1 → T2 → T3 ✅
+Fair vs Non-Fair Lock
+Fair Lock	Non-Fair Lock
+FIFO order	No guaranteed order
+Prevents starvation	Starvation possible
+Slightly slower	Better performance
+new ReentrantLock(true)	new ReentrantLock()
+Interview Points
+ReentrantLock is non-fair by default.
+Fair locks improve fairness but reduce throughput.
+Most applications use non-fair locks because they perform better.
+Read-Write Lock (ReadWriteLock)
+What is a Read-Write Lock?
+
+A ReadWriteLock allows:
+
+Multiple threads to read simultaneously.
+Only one thread to write at a time.
+
+It improves performance when reads are much more frequent than writes.
+
+Implementation:
+
+ReadWriteLock lock = new ReentrantReadWriteLock();
+Why do we need Read-Write Lock?
+
+Consider a cache:
+
+Thousands of users are reading data.
+Only a few users update the data.
+
+Using a normal Lock:
+
+Read
+Read
+Read
+Read
+
+All threads execute one by one ❌
+
+Using ReadWriteLock:
+
+Read Read Read Read
+
+All readers execute simultaneously ✅
+
+Read Lock
+Multiple threads can hold the read lock at the same time.
+Allowed only if no thread is writing.
+lock.readLock().lock();
+
+try {
+    // Read data
+} finally {
+    lock.readLock().unlock();
+}
+Write Lock
+Only one thread can hold the write lock.
+While writing:
+No other writer is allowed.
+No reader is allowed.
+lock.writeLock().lock();
+
+try {
+    // Modify data
+} finally {
+    lock.writeLock().unlock();
+}
+Example
+import java.util.concurrent.locks.*;
+
+class Database {
+
+    private int value = 0;
+    private ReadWriteLock lock = new ReentrantReadWriteLock();
+
+    public void read() {
+        lock.readLock().lock();
+        try {
+            System.out.println(value);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    public void write(int x) {
+        lock.writeLock().lock();
+        try {
+            value = x;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+}
+Read-Write Lock Behavior
+Reader-1  ─────┐
+Reader-2  ─────┼── Read Together ✅
+Reader-3  ─────┘
+
+Writer-1  ───── Exclusive Access ✅
+
+Reader + Writer ❌
+Writer + Writer ❌
+Advantages
+Improves performance for read-heavy applications.
+Allows concurrent reads.
+Ensures exclusive writes.
+Reduces unnecessary blocking.
+Disadvantages
+More complex than ReentrantLock.
+If writes are frequent, performance gains are minimal.
+Poor design can still lead to writer or reader starvation (depending on implementation and fairness).
+Lock vs ReadWriteLock
+Lock	ReadWriteLock
+One thread at a time	Multiple readers allowed
+Simple synchronization	Separate read and write locks
+Best for frequent writes	Best for frequent reads
+Lower concurrency	Higher concurrency for reads
+Interview Points
+ReadWriteLock is implemented by ReentrantReadWriteLock.
+Multiple readers can access the resource simultaneously.
+Only one writer is allowed at a time.
+A writer blocks both readers and other writers.
+Use ReadWriteLock when read operations greatly outnumber write operations (e.g., caches, configuration data, lookup tables).
+
+
+Thread Safety in Java
+What is Thread Safety?
+
+A class or method is thread-safe if multiple threads can access it simultaneously without causing data inconsistency or race conditions.
+
+Example (Not Thread-Safe)
+class Counter {
+    int count = 0;
+
+    public void increment() {
+        count++;
+    }
+}
+
+Two threads executing increment() simultaneously may produce an incorrect value.
+
+Thread-Safe Example
+class Counter {
+    int count = 0;
+
+    public synchronized void increment() {
+        count++;
+    }
+}
+
+Now only one thread can update count at a time.
+
+Ways to Achieve Thread Safety
+1. synchronized
+public synchronized void increment() {
+    count++;
+}
+2. Explicit Lock (ReentrantLock)
+lock.lock();
+try {
+    count++;
+} finally {
+    lock.unlock();
+}
+3. Atomic Classes
+
+For simple operations like increment/decrement.
+
+AtomicInteger count = new AtomicInteger();
+
+count.incrementAndGet();
+4. Immutable Objects
+
+Objects whose state cannot change after creation are naturally thread-safe.
+
+String str = "Hello";
+Interview Points
+Thread safety prevents race conditions.
+AtomicInteger is preferred over synchronized for simple counters.
+Immutable classes are inherently thread-safe.
+Thread safety can be achieved using synchronization, locks, atomic classes, and immutable objects.
+Deadlock in Java
+What is Deadlock?
+
+A deadlock occurs when two or more threads wait indefinitely for each other to release locks, and none of them can proceed.
+
+Example
+class Test {
+
+    static final Object lock1 = new Object();
+    static final Object lock2 = new Object();
+
+    public static void main(String[] args) {
+
+        Thread t1 = new Thread(() -> {
+            synchronized (lock1) {
+                System.out.println("Thread 1 acquired lock1");
+
+                synchronized (lock2) {
+                    System.out.println("Thread 1 acquired lock2");
+                }
+            }
+        });
+
+        Thread t2 = new Thread(() -> {
+            synchronized (lock2) {
+                System.out.println("Thread 2 acquired lock2");
+
+                synchronized (lock1) {
+                    System.out.println("Thread 2 acquired lock1");
+                }
+            }
+        });
+
+        t1.start();
+        t2.start();
+    }
+}
+
+Possible Situation:
+
+Thread-1 → Holds Lock1 → Waiting for Lock2
+
+Thread-2 → Holds Lock2 → Waiting for Lock1
+
+Result: Deadlock
+How to Prevent Deadlock?
+1. Acquire Locks in the Same Order ✅
+
+Always lock resources in a consistent order.
+
+Thread 1 : Lock1 → Lock2
+
+Thread 2 : Lock1 → Lock2
+2. Use tryLock()
+if(lock.tryLock()) {
+    try {
+        // Critical section
+    } finally {
+        lock.unlock();
+    }
+}
+
+Avoids waiting forever.
+
+3. Minimize Lock Scope
+
+Keep synchronized/locked sections as short as possible.
+
+Necessary Conditions for Deadlock
+Mutual Exclusion
+Hold and Wait
+No Preemption
+Circular Wait
+
+All four conditions must exist for a deadlock.
+
+Interview Points
+Deadlock is a situation where threads wait forever for each other's locks.
+Maintain a consistent lock order to prevent deadlocks.
+tryLock() can help avoid deadlocks.
+Deadlocks are easier to debug using thread dumps (jstack).
+Java Lambda in Threads
+What is Lambda?
+
+Since Runnable is a Functional Interface (only one abstract method), we can implement it using a lambda expression.
+
+Without Lambda
+class MyTask implements Runnable {
+
+    @Override
+    public void run() {
+        System.out.println("Task Running");
+    }
+}
+
+public class Main {
+
+    public static void main(String[] args) {
+        Thread t = new Thread(new MyTask());
+        t.start();
+    }
+}
+With Lambda (Java 8+)
+public class Main {
+
+    public static void main(String[] args) {
+
+        Thread t = new Thread(() -> {
+            System.out.println("Task Running");
+        });
+
+        t.start();
+    }
+}
+Lambda with Multiple Statements
+Thread t = new Thread(() -> {
+    System.out.println("Task Started");
+
+    for (int i = 1; i <= 5; i++) {
+        System.out.println(i);
+    }
+
+    System.out.println("Task Completed");
+});
+
+t.start();
+Why Use Lambda?
+Less code.
+More readable.
+No need to create a separate Runnable class.
+Widely used with ExecutorService and modern Java concurrency APIs.
+Interview Points
+Runnable is a Functional Interface, so it can be implemented using a lambda.
+Lambda expressions reduce boilerplate code.
+Lambda does not create a new thread by itself; new Thread(...).start() or an executor is still required.
+Lambdas are the preferred way to create simple thread tasks in modern Java.
+Common Interview Questions
+1. Is ArrayList thread-safe?
+
+No. Use Collections.synchronizedList() or CopyOnWriteArrayList if thread safety is required.
+
+2. What is the difference between AtomicInteger and synchronized?
+AtomicInteger	synchronized
+Lock-free (CAS-based)	Uses locking
+Better for simple atomic operations	Suitable for complex critical sections
+Higher performance for counters	More general-purpose
+3. Why is Runnable commonly used with lambdas?
+
+Because Runnable has only one abstract method (run()), making it a functional interface that can be implemented with a lambda expression.
+
+
+ExecutorService in Java
+What is ExecutorService?
+ExecutorService is a framework for managing and executing threads efficiently.
+Instead of creating threads manually using new Thread(), you submit tasks to an ExecutorService, which uses a thread pool.
+ExecutorService executor = Executors.newFixedThreadPool(3);
+Why use ExecutorService?
+
+Without ExecutorService:
+
+new Thread(task1).start();
+new Thread(task2).start();
+new Thread(task3).start();
+Creates a new thread for every task.
+High memory and CPU overhead.
+
+With ExecutorService:
+
+ExecutorService executor = Executors.newFixedThreadPool(3);
+
+executor.submit(task1);
+executor.submit(task2);
+executor.submit(task3);
+Reuses existing threads.
+Better performance.
+Easier thread management.
+Thread Pool
+
+A Thread Pool is a collection of pre-created worker threads that execute submitted tasks.
+
+             Task1
+             Task2
+             Task3
+             Task4
+               |
+               V
+        -----------------
+        | Thread Pool   |
+        |---------------|
+        | Thread-1      |
+        | Thread-2      |
+        | Thread-3      |
+        -----------------
+Creating an ExecutorService
+1. Fixed Thread Pool
+Creates a fixed number of threads.
+ExecutorService executor =
+        Executors.newFixedThreadPool(3);
+2. Single Thread Executor
+Only one thread executes all tasks sequentially.
+ExecutorService executor =
+        Executors.newSingleThreadExecutor();
+3. Cached Thread Pool
+Creates threads as needed.
+Reuses idle threads.
+ExecutorService executor =
+        Executors.newCachedThreadPool();
+4. Scheduled Thread Pool
+Executes tasks after a delay or periodically.
+ScheduledExecutorService executor =
+        Executors.newScheduledThreadPool(2);
+submit() vs execute()
+execute()
+Executes a task.
+Does not return a result.
+executor.execute(() -> {
+    System.out.println("Task Running");
+});
+submit()
+Executes a task.
+Returns a Future object.
+Future<?> future = executor.submit(() -> {
+    System.out.println("Task Running");
+});
+Example
+import java.util.concurrent.*;
+
+public class Main {
+
+    public static void main(String[] args) {
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(2);
+
+        executor.submit(() ->
+                System.out.println(Thread.currentThread().getName()));
+
+        executor.submit(() ->
+                System.out.println(Thread.currentThread().getName()));
+
+        executor.shutdown();
+    }
+}
+
+Possible Output
+
+pool-1-thread-1
+pool-1-thread-2
+shutdown() vs shutdownNow()
+shutdown()
+Stops accepting new tasks.
+Completes already submitted tasks.
+executor.shutdown();
+shutdownNow()
+Attempts to stop all running tasks immediately.
+Returns tasks that were not started.
+executor.shutdownNow();
+Lifecycle
+Create ExecutorService
+        |
+Submit Tasks
+        |
+Execute Tasks
+        |
+shutdown()
+        |
+Terminated
+Advantages
+Reuses threads.
+Better performance.
+Reduces thread creation overhead.
+Simplifies thread management.
+Supports task scheduling and result retrieval.
+Common Executor Types
+Executor	Use Case
+newFixedThreadPool(n)	Fixed number of worker threads
+newSingleThreadExecutor()	Sequential task execution
+newCachedThreadPool()	Many short-lived tasks
+newScheduledThreadPool(n)	Delayed or periodic tasks
+Interview Points
+ExecutorService manages thread pools, not individual threads.
+Prefer submit() when you need a result (Future); use execute() for fire-and-forget tasks.
+Always call shutdown() after submitting tasks to release resources.
+Creating a thread pool is more efficient than creating a new thread for every task.
+ExecutorService is part of java.util.concurrent.
+Common Interview Questions
+1. Why is ExecutorService better than new Thread()?
+Reuses threads (thread pooling).
+Better performance.
+Easier lifecycle management.
+Supports Future, scheduling, and graceful shutdown.
+2. What is the difference between submit() and execute()?
+execute()	submit()
+Returns void	Returns Future<?>
+No result	Can retrieve result
+Used with Runnable	Used with Runnable and Callable
+3. Why should we call shutdown()?
+
+To stop accepting new tasks and allow the thread pool to terminate gracefully after finishing submitted work. Without it, the JVM may keep running because the pool's worker threads are still alive.
+
+
+CountDownLatch
+What is CountDownLatch?
+CountDownLatch is a synchronization utility that allows one or more threads to wait until a set of operations performed by other threads completes.
+It is one-time use only. Once the count reaches 0, it cannot be reset.
+
+Package:
+
+import java.util.concurrent.CountDownLatch;
+How does it work?
+Create a latch with an initial count.
+Worker threads call countDown() when they finish.
+Waiting thread calls await().
+When count becomes 0, the waiting thread continues.
+Initial Count = 3
+
+Thread-1 ------ countDown() ---> Count = 2
+
+Thread-2 ------ countDown() ---> Count = 1
+
+Thread-3 ------ countDown() ---> Count = 0
+
+Main Thread
+      |
+   await()
+      |
+      V
+ Continues Execution
+Example
+import java.util.concurrent.CountDownLatch;
+
+public class Main {
+
+    public static void main(String[] args) throws InterruptedException {
+
+        CountDownLatch latch = new CountDownLatch(3);
+
+        Runnable task = () -> {
+            System.out.println(Thread.currentThread().getName() + " Finished");
+            latch.countDown();
+        };
+
+        new Thread(task).start();
+        new Thread(task).start();
+        new Thread(task).start();
+
+        latch.await();
+
+        System.out.println("All Threads Completed");
+    }
+}
+Output
+Thread-0 Finished
+Thread-1 Finished
+Thread-2 Finished
+All Threads Completed
+Important Methods
+await()
+
+Wait until count becomes 0.
+
+latch.await();
+countDown()
+
+Decrease count by 1.
+
+latch.countDown();
+getCount()
+
+Returns the current count.
+
+System.out.println(latch.getCount());
+Use Cases
+Wait until all worker threads finish.
+Parallel file processing.
+Microservices startup.
+Loading application resources.
+Interview Points
+One-time synchronization.
+Count only decreases.
+Cannot be reused.
+Main thread usually waits using await().
+CyclicBarrier
+What is CyclicBarrier?
+CyclicBarrier allows a group of threads to wait for each other before continuing.
+Once all threads reach the barrier, all of them continue together.
+It is reusable.
+
+Package:
+
+import java.util.concurrent.CyclicBarrier;
+How does it work?
+
+Suppose 3 threads must complete Phase-1 before starting Phase-2.
+
+Thread-1 ----\
+Thread-2 ----- > Barrier
+Thread-3 ----/
+
+All arrive
+
+↓
+
+All continue together
+Example
+import java.util.concurrent.CyclicBarrier;
+
+public class Main {
+
+    public static void main(String[] args) {
+
+        CyclicBarrier barrier = new CyclicBarrier(3);
+
+        Runnable task = () -> {
+            try {
+                System.out.println(Thread.currentThread().getName() + " reached barrier");
+                barrier.await();
+                System.out.println(Thread.currentThread().getName() + " crossed barrier");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        };
+
+        new Thread(task).start();
+        new Thread(task).start();
+        new Thread(task).start();
+    }
+}
+Output
+Thread-0 reached barrier
+Thread-1 reached barrier
+Thread-2 reached barrier
+
+Thread-0 crossed barrier
+Thread-1 crossed barrier
+Thread-2 crossed barrier
+Barrier Action
+
+You can execute a task once all threads reach the barrier.
+
+CyclicBarrier barrier = new CyclicBarrier(3, () -> {
+    System.out.println("All Threads Arrived");
+});
+
+The barrier action runs once, just before the waiting threads are released.
+
+Important Methods
+await()
+
+Wait at the barrier.
+
+barrier.await();
+reset()
+
+Reset the barrier.
+
+barrier.reset();
+Use Cases
+Multiplayer games.
+Scientific simulations.
+Parallel matrix calculations.
+Multi-phase algorithms.
+Interview Points
+All participating threads wait at the barrier.
+Barrier releases everyone together.
+Can be reused multiple times.
+Supports a barrier action.
+CountDownLatch vs CyclicBarrier
+CountDownLatch	CyclicBarrier
+One-time use	Reusable
+Count decreases to 0	Threads wait for each other
+Usually one thread waits	All participating threads wait
+Uses countDown()	Uses await()
+Cannot reset	Can reset using reset()
+Real-Life Analogy
+CountDownLatch
+
+Imagine a manager waiting for three employees to finish their work.
+
+Employee-1 ✔
+
+Employee-2 ✔
+
+Employee-3 ✔
+
+↓
+
+Manager Starts Meeting
+
+Only the manager waits.
+
+CyclicBarrier
+
+Imagine three friends going on a trip.
+
+Friend-1 arrives
+
+Friend-2 arrives
+
+Friend-3 arrives
+
+↓
+
+All leave together
+
+Everyone waits until the entire group is ready.
+
+Which one should you use?
+✅ Use CountDownLatch when one thread needs to wait for other threads to finish.
+✅ Use CyclicBarrier when multiple threads must wait for each other before moving to the next phase.
+Common Interview Questions
+1. What is the main difference between CountDownLatch and CyclicBarrier?
+CountDownLatch: One-time synchronization where a waiting thread proceeds after the count reaches zero.
+CyclicBarrier: Reusable synchronization point where all participating threads wait until everyone reaches the barrier.
+2. Can a CountDownLatch be reused?
+
+No. Once its count reaches zero, it cannot be reset. You must create a new CountDownLatch.
+
+3. Can a CyclicBarrier be reused?
+
+Yes. After all threads cross the barrier, it can be used again for the next synchronization cycle, which is why it is called cyclic.
+
+
+CompletableFuture in Java
+What is CompletableFuture?
+CompletableFuture is used for asynchronous programming in Java.
+It allows a task to run in a separate thread without blocking the main thread.
+It also lets you chain multiple asynchronous tasks together.
+Introduced in Java 8.
+
+Package:
+
+import java.util.concurrent.CompletableFuture;
+Why do we need CompletableFuture?
+
+Without CompletableFuture, the main thread waits for the task to finish.
+
+Main Thread
+    |
+Long Running Task
+    |
+Wait...
+    |
+Result
+
+With CompletableFuture:
+
+Main Thread -------------> Continues Working
+
+Background Thread -------> Executes Task
+
+                           |
+                           V
+                        Returns Result
+
+The main thread doesn't remain blocked.
+
+Creating a CompletableFuture
+1. runAsync()
+
+Used when the task does not return any result.
+
+CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+    System.out.println("Task Running...");
+});
+
+future.join();
+2. supplyAsync()
+
+Used when the task returns a value.
+
+CompletableFuture<String> future =
+        CompletableFuture.supplyAsync(() -> "Hello");
+
+System.out.println(future.join());
+
+Output
+
+Hello
+Getting the Result
+get()
+Waits for completion.
+Throws checked exceptions.
+String result = future.get();
+join()
+Waits for completion.
+Throws unchecked exceptions.
+Preferred in most cases.
+String result = future.join();
+Chaining Methods
+thenApply()
+
+Transforms the result.
+
+CompletableFuture<String> future =
+        CompletableFuture.supplyAsync(() -> "Java")
+                         .thenApply(s -> s + " 21");
+
+System.out.println(future.join());
+
+Output
+
+Java 21
+thenAccept()
+
+Consumes the result but returns nothing.
+
+CompletableFuture.supplyAsync(() -> "Hello")
+                 .thenAccept(System.out::println);
+thenRun()
+
+Runs another task after completion without using the previous result.
+
+CompletableFuture.runAsync(() -> {
+    System.out.println("Task 1");
+}).thenRun(() -> {
+    System.out.println("Task 2");
+});
+Combining Two Futures
+thenCombine()
+
+Combines results from two independent tasks.
+
+CompletableFuture<String> f1 =
+        CompletableFuture.supplyAsync(() -> "Hello");
+
+CompletableFuture<String> f2 =
+        CompletableFuture.supplyAsync(() -> " Java");
+
+CompletableFuture<String> result =
+        f1.thenCombine(f2, (a, b) -> a + b);
+
+System.out.println(result.join());
+
+Output
+
+Hello Java
+Waiting for Multiple Tasks
+allOf()
+
+Waits until all tasks complete.
+
+CompletableFuture<Void> all =
+        CompletableFuture.allOf(f1, f2);
+
+all.join();
+anyOf()
+
+Returns when any one task completes.
+
+CompletableFuture<Object> any =
+        CompletableFuture.anyOf(f1, f2);
+
+System.out.println(any.join());
+Exception Handling
+exceptionally()
+
+Handles exceptions and returns a fallback value.
+
+CompletableFuture<Integer> future =
+        CompletableFuture.supplyAsync(() -> 10 / 0)
+                         .exceptionally(ex -> -1);
+
+System.out.println(future.join());
+
+Output
+
+-1
+Advantages
+Non-blocking programming.
+Better performance.
+Easy task chaining.
+Built-in exception handling.
+Executes multiple tasks in parallel.
+CompletableFuture vs Future
+Future	CompletableFuture
+Can only get result	Can chain multiple tasks
+No callback support	Supports callbacks
+Limited exception handling	Built-in exception handling
+Blocking style	Supports non-blocking programming
+Introduced in Java 5	Introduced in Java 8
+Interview Points
+CompletableFuture is used for asynchronous and non-blocking programming.
+runAsync() → No return value.
+supplyAsync() → Returns a value.
+join() throws unchecked exceptions, while get() throws checked exceptions.
+thenApply() transforms the result.
+thenAccept() consumes the result.
+thenRun() executes another task without using the previous result.
+allOf() waits for all tasks.
+anyOf() returns when the first task completes.
+exceptionally() is used for exception handling.
+Common Interview Questions
+1. What is the difference between runAsync() and supplyAsync()?
+runAsync()	supplyAsync()
+No return value	Returns a value
+Returns CompletableFuture<Void>	Returns CompletableFuture<T>
+2. What is the difference between get() and join()?
+get()	join()
+Throws checked exceptions	Throws unchecked exceptions
+Part of Future	Specific to CompletableFuture
+3. When should you use CompletableFuture?
+
+Use it when:
+
+Tasks are independent and can run in parallel.
+You don't want to block the main thread.
+You need to chain asynchronous operations.
+You want better control over asynchronous workflows and exception handling.
+
+
+volatile vs Atomic Classes (AtomicInteger, AtomicBoolean, etc.)
+
+This is one of the most frequently asked multithreading interview questions. The key thing to understand is:
+
+volatile provides visibility.
+Atomic classes provide visibility + atomicity.
+
+Let's understand this step by step.
+
+Problem Without volatile
+
+Suppose we have a shared variable:
+
+class Task {
+    boolean running = true;
+
+    public void work() {
+        while (running) {
+            // Do some work
+        }
+        System.out.println("Stopped");
+    }
+
+    public void stop() {
+        running = false;
+    }
+}
+
+Suppose:
+
+Thread-1 executes work()
+Thread-2 executes stop()
+
+We expect:
+
+running = false
+
+↓
+
+Thread-1 stops
+
+But sometimes Thread-1 never stops!
+
+Why?
+
+CPU Cache Problem
+
+Each CPU core has its own cache.
+
+              Main Memory
+
+          running = true
+                |
+        --------------------
+        |                  |
+    CPU Core-1         CPU Core-2
+       Cache              Cache
+
+ running=true         running=true
+
+Thread-2 changes
+
+running = false;
+
+Maybe only Main Memory gets updated.
+
+Thread-1 keeps reading its cached copy.
+
+Thread-1
+
+while(running)
+
+running is still true ❌
+
+Infinite loop.
+
+Solution → volatile
+volatile boolean running = true;
+
+Now every read/write goes through Main Memory.
+
+CPU Core-1
+
+↓
+
+Main Memory
+
+↓
+
+CPU Core-2
+
+Now when Thread-2 changes
+
+running = false;
+
+Thread-1 immediately sees it.
+
+What does volatile guarantee?
+1. Visibility ✅
+
+Every thread sees the latest value.
+
+Example
+
+volatile boolean flag = false;
+
+If Thread-A changes
+
+flag = true;
+
+Thread-B immediately sees
+
+flag == true
+2. Prevents Instruction Reordering ✅
+
+The JVM and CPU sometimes reorder instructions for optimization.
+
+volatile prevents harmful reordering around that variable.
+
+What volatile DOES NOT Guarantee
+
+It does NOT make operations atomic.
+
+Example
+
+volatile int count = 0;
+
+count++;
+
+Looks like one operation.
+
+Actually it is three operations.
+
+Read count
+
+↓
+
+Increment
+
+↓
+
+Write count
+
+Suppose
+
+count = 5
+
+Thread-1
+
+Read → 5
+
+Thread-2
+
+Read → 5
+
+Thread-1
+
+Write → 6
+
+Thread-2
+
+Write → 6
+
+Expected
+
+7
+
+Actual
+
+6
+
+Race Condition.
+
+Even though
+
+volatile int count;
+
+still gives the wrong answer.
+
+What is Atomicity?
+
+Atomic means
+
+The operation happens completely or not at all. Nobody can interrupt it.
+
+Think of ATM withdrawal.
+
+Either
+
+Money Debited
+
+AND
+
+Cash Dispensed
+
+or
+
+Nothing Happens
+
+Not
+
+Money Debited
+
+Cash Not Dispensed
+Atomic Classes
+
+Java provides
+
+AtomicInteger
+
+AtomicLong
+
+AtomicBoolean
+
+AtomicReference
+
+Package
+
+import java.util.concurrent.atomic.*;
+Example
+AtomicInteger count = new AtomicInteger();
+
+Increment
+
+count.incrementAndGet();
+
+This is atomic.
+
+No race condition.
+
+Example
+
+Without Atomic
+
+class Counter {
+
+    int count = 0;
+
+    public void increment() {
+        count++;
+    }
+}
+
+Two threads
+
+1000 increments
+
++
+
+1000 increments
+
+Expected
+
+2000
+
+Actual
+
+1932
+1987
+1996
+
+Random.
+
+With AtomicInteger
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+class Counter {
+
+    AtomicInteger count = new AtomicInteger();
+
+    public void increment() {
+        count.incrementAndGet();
+    }
+}
+
+Now
+
+Always
+
+2000
+How does AtomicInteger work?
+
+It uses
+
+CAS (Compare And Swap)
+
+Instead of locking.
+
+Suppose
+
+count = 5
+
+Thread wants
+
+5 → 6
+
+CAS asks
+
+Is current value still 5 ?
+
+YES
+
+↓
+
+Replace with 6
+
+Done
+
+Suppose another thread already changed it
+
+count = 8
+
+CAS
+
+Expected = 5
+
+Actual = 8
+
+Mismatch
+
+Retry
+
+No lock needed.
+
+This is called lock-free programming.
+
+CAS Diagram
+Expected = 10
+
+Current = 10
+
+↓
+
+Replace with 11
+
+Success
+
+OR
+
+Expected = 10
+
+Current = 12
+
+↓
+
+Fail
+
+Retry
+volatile vs AtomicInteger
+volatile	AtomicInteger
+Guarantees visibility	Guarantees visibility + atomicity
+No locking	Lock-free (CAS)
+Cannot prevent race conditions	Prevents race conditions for atomic operations
+Good for flags	Good for counters and shared numeric values
+count++ is NOT safe	incrementAndGet() is safe
+When to Use volatile
+
+Use volatile when:
+
+Sharing a boolean flag.
+One thread writes and many threads read.
+No compound operations (++, --, +=).
+
+Example
+
+volatile boolean shutdown = false;
+When to Use Atomic Classes
+
+Use Atomic classes when:
+
+Incrementing counters.
+Updating shared values.
+Performing compare-and-update operations.
+You need thread-safe numeric operations without explicit locks.
+
+Example
+
+AtomicInteger visitors = new AtomicInteger();
+
+visitors.incrementAndGet();
+Can volatile replace AtomicInteger?
+
+No.
+
+Wrong
+
+volatile int count;
+
+count++;
+
+Still causes race conditions.
+
+Correct
+
+AtomicInteger count = new AtomicInteger();
+
+count.incrementAndGet();
+Can AtomicInteger replace synchronized?
+
+Sometimes.
+
+Good for
+
+Counters
+Flags
+Statistics
+
+Not suitable for
+
+balance = balance - amount;
+
+history.add(transaction);
+
+These are multiple operations that must execute together, so use synchronized or Lock.
+
+Interview Points
+volatile guarantees visibility, not atomicity.
+count++ is not atomic, even if count is volatile.
+Atomic classes use CAS (Compare-And-Swap) instead of locks.
+AtomicInteger is generally faster than synchronized for simple counters because it avoids blocking.
+Use volatile for status flags (e.g., shutdown, running).
+Use Atomic classes for thread-safe counters and simple shared state updates.
+Use synchronized or Lock when multiple operations must execute as a single unit.
+Common Interview Questions
+1. Why is volatile int count not thread-safe?
+
+Because count++ is actually:
+
+Read
+
+↓
+
+Increment
+
+↓
+
+Write
+
+These are three separate steps, so two threads can interfere with each other.
+
+2. What is CAS?
+
+Compare-And-Swap (CAS) is an atomic CPU operation used by atomic classes. It updates a value only if it hasn't changed since it was last read. If another thread modified it, the operation retries.
+
+3. Which is faster: AtomicInteger or synchronized?
+
+For simple operations like incrementing a counter, AtomicInteger is usually faster because it uses lock-free CAS instead of blocking threads. However, for complex critical sections involving multiple shared variables or operations, synchronized (or Lock) is the appropriate choice.
+
